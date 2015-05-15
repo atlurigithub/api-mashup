@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:data-mapper="http://www.mulesoft.org/schema/mule/ee/data-mapper" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.6.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/data-mapper http://www.mulesoft.org/schema/mule/ee/data-mapper/current/mule-data-mapper.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration1" host="localhost" port="8082" doc:name="HTTP Listener Configuration"/>
+    <http:request-config name="HTTP_Request_Configuration1"  host="maps.googleapis.com" port="443" basePath="maps" doc:name="HTTP Request Configuration" protocol="HTTPS"/>
+    <http:request-config name="HTTP_Request_Configuration" protocol="HTTPS" host="api.foursquare.com" port="443" basePath="v2/venues/search" doc:name="HTTP Request Configuration"/>
+    <data-mapper:config name="JSON_To_CSV" transformationGraphPath="json_to_csv.grf" doc:name="JSON_To_CSV"/>
+    <flow name="google-geocodingFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration1" path="/" doc:name="HTTP"/>
+        <response>
+            <http:request config-ref="HTTP_Request_Configuration" path="/" method="GET" doc:name="HTTP">
+                <http:request-builder>
+                    <http:query-param paramName="client_id" value="53YEDQXEGGUBZ0TWNPGBLQEHFPD2BYDFM4VFCR1DAUQDJIIH"/>
+                    <http:query-param paramName="client_secret" value="SYLWURHSR2A5LKNOBBLBZTZTMTCBOJIFV5FU5R00PCFBDYJC"/>
+                    <http:query-param paramName="v" value="20130815"/>
+                    <http:query-param paramName="ll" value=" #[flowVars['lll']]"/>
+                    <http:query-param paramName="query" value=" #[flowVars['query']]"/>
+                </http:request-builder>
+                <http:success-status-code-validator values="0..599"/>
+            </http:request>
+        </response>
+        <set-variable variableName="address" value="#[message.inboundProperties.'http.query.params'.address]" doc:name="Variable"/>
+        <set-variable variableName="query" value="#[message.inboundProperties.'http.query.params'.query]" doc:name="Variable"/>
+        <http:request config-ref="HTTP_Request_Configuration1" path="/api/geocode/json" method="GET" doc:name="HTTP">
+            <http:request-builder>
+                <http:query-param paramName="address" value=" #[flowVars['address']]"/>
+                <http:query-param paramName="key" value="AIzaSyDLvA-K_3eLpxCfuNQ2MZ4XiVemraZHFmc"/>
+            </http:request-builder>
+            <http:success-status-code-validator values="0..599"/>
+        </http:request>
+        <data-mapper:transform config-ref="JSON_To_CSV" doc:name="JSON To CSV"/>
+        <byte-array-to-string-transformer doc:name="Byte Array to String"/>
+        <set-variable variableName="ll" value="#[org.mule.util.StringUtils.substringAfter(payload, '&quot;&quot;,&quot;&quot;')]" doc:name="Variable"/>
+        <response>
+            <set-variable variableName="lll" value=" #[org.mule.util.StringUtils.remove(flowVars['ll'], '&quot;')]" doc:name="Variable"/>
+        </response>
+    </flow>
+</mule>
